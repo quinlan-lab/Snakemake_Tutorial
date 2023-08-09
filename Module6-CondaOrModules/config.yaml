@@ -1,0 +1,7 @@
+input_directory: "../data"
+output_directory: "output"
+reference_genome: "../reference/chr1-3.fa"
+samples:
+    - Sample1
+    - Sample2
+    - Sample3

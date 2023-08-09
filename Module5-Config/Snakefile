@@ -1,0 +1,170 @@
+### IMPORTS ###
+import snakemake 
+import os
+import re
+
+# If we want our workflow to be portable, you might want 
+# to provide a configuration file instead of hard-coding files and 
+# paths. 
+
+# We can define our configuration file as a .yaml file, and these values
+# can be accessed in Python. 
+# We need to define a special "configfile" in a Snakefile, and this will 
+# load a special dictionary object called "config". The key values correspond
+# to the key values in the .yaml files. See "config.yaml" for these paths and values. 
+
+# Typically, snakemake looks for "config.yaml" in the same directory of the 
+# snakefile, but specific configuration files can be defined using the 
+# "--configfile=path/to/file" command line option. 
+
+configfile: 'config.yaml'
+in_dir: str = config["input_directory"]
+out_dir: str = config["output_directory"]
+reference: str = config["reference_genome"]
+samples: list[str] = config["samples"]
+
+# Format
+in_dir = in_dir.rstrip("/")
+out_dir = out_dir.rstrip("/")
+
+
+# Do not forget to update the constraints!
+wildcard_constraints: 
+    out_dir = out_dir,
+    sample = "[A-Za-z0-9]+"
+ 
+# For all of our rules, we can add new wildcards. In these cases, 
+# we're replacing our hard-coded "output/" and "../data/" directories
+# with "{out_dir}" and "{in_dir}", respectively. 
+# Additionally, with "expand", the single values of {out_dir} will expand
+# with every value of {sample}. If our out_dir is "output", this will 
+# will equal:
+# {out_dir}     {sample}
+# output        Sample1
+# output        Sample2
+# output        Sample3
+
+rule all:
+    input: 
+        expand("{out_dir}/data/{sample}.bai", out_dir = out_dir, sample = samples),
+        expand("{out_dir}/reports/{sample}_fastqc.html", out_dir = out_dir, sample = samples)
+
+# However, a problem with our in_dir is that there is no resolution for it!
+# So an alternative strategy, instead of using it as a wildcard, is using it as-is; as a regular string. 
+# We can use python code to concatenate our in directory with the rest of the string; in this 
+# case, the sample wildcard with R1 or R2. 
+rule fastp: 
+    input:
+        r1 = in_dir + "/{sample}_R1.fastq",
+        r2 = in_dir + "/{sample}_R2.fastq"
+    output:
+        r1_clean = "{out_dir}/data/{sample}_R1.clean.fastq",
+        r2_clean = "{out_dir}/data/{sample}_R2.clean.fastq",
+        html_report = "{out_dir}/reports/{sample}-fastp-report.html",
+        json_report = "{out_dir}/reports/{sample}-fastp-report.json"
+    threads: 
+        4
+    resources:
+        mem_mb = 4000
+    log:
+        stderr = "{out_dir}/logs/{sample}-fastp.log"
+    params:
+        qual = 20
+    shell:
+        """
+        fastp --in1 {input.r1} --in2 {input.r2} \
+        --out1 {output.r1_clean} --out2 {output.r2_clean} \
+        --detect_adapter_for_pe \
+        --average_qual {params.qual} \
+        --thread {threads} \
+        --html {output.html_report} \
+        --json {output.json_report} 2> {log.stderr}
+        """
+
+# Since our "reference" is a path defined in the "config.yaml", 
+# we can pass it directly to an input variable. 
+rule bwa_mem: 
+    input:
+        r1_clean = "{out_dir}/data/{sample}_R1.clean.fastq",
+        r2_clean = "{out_dir}/data/{sample}_R2.clean.fastq",
+        ref = reference
+    output:
+        sam = temp("{out_dir}/data/{sample}-aligned.sam")
+    threads: 
+        4
+    resources: 
+        mem_mb = 4000
+    log:
+        stderr = "{out_dir}/logs/{sample}-bwamem.log"
+    shell: 
+        """
+        bwa mem {input.ref} {input.r1_clean} {input.r2_clean} -t {threads} > {output.sam} 2> {log.stderr}
+        """
+
+rule convert_sam_to_bam: 
+    input:
+        sam = "{out_dir}/data/{sample}-aligned.sam"
+    output:
+        bam = temp("{out_dir}/data/{sample}-aligned.bam")
+    threads: 
+        4
+    resources: 
+        mem_mb = 1000
+    log:
+        stderr = "{out_dir}/logs/{sample}_convert.log"
+    shell:
+        """
+        samtools view -F 4 --bam {input.sam} -o {output.bam} 2> {log.stderr}
+        """
+
+rule sort_bam: 
+    input:
+        bam = "{out_dir}/data/{sample}-aligned.bam"
+    output: 
+        bam_sort = "{out_dir}/data/{sample}.bam"
+    threads: 
+        4
+    resources:
+        mem_mb = 4000
+    log:
+        stderr = "{out_dir}/logs/{sample}-sort.log"
+    shell:
+        """
+        samtools sort {input.bam} -o {output.bam_sort} 2> {log.stderr}
+        """
+
+# Note that you do not need to specify the output variable in the shell script; 
+# in this case, this is the output file that we expect the rule to produce. 
+# As long as the file is produced after the execution of the rule, then it will 
+# work. 
+rule qc:
+    input:
+        bam_sort = "{out_dir}/data/{sample}.bam"
+    output:
+        qc = "{out_dir}/reports/{sample}_fastqc.html"
+    threads: 
+        4
+    resources: 
+        mem_mb = 1000
+    log:
+        stderr = "{out_dir}/logs/{sample}-qc.log"
+    params:
+        qc_dir = "{out_dir}/reports"
+    shell:
+        """
+        fastqc {input.bam_sort} -o {params.qc_dir} 2> {log.stderr}
+        """
+
+rule index_bam: 
+    input: 
+        bam_sort = "{out_dir}/data/{sample}.bam"
+    output:
+        bai = "{out_dir}/data/{sample}.bai"
+    threads: 
+        4
+    log:
+        stderr = "{out_dir}/logs/{sample}-indexbam.log"
+    shell:  
+        """
+        samtools index -b {input.bam_sort} -o {output.bai} 2> {log.stderr}
+        """
