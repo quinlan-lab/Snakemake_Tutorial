@@ -12,17 +12,35 @@ samples: list[str] = [
 wildcard_constraints: 
     sample = "[A-Za-z0-9]+"
 
-# For this, we'll add a few more rules; sort_bam, qc, and index_bam. 
-# qc and index_bam both require the output of sort_bam. In this case, these 
-# rules can branch and run in parallel to each other, since they are not dependent
-# on the successful completion of each other. 
-# However, since there are now two "ending" data types, we need to have two expansions 
-# in the "all" rule. See the DAG for information on this. 
+
 rule all:
     input: 
-        expand("output/data/{sample}.bai", sample = samples),
-        expand("output/reports/{sample}_fastqc.html", sample = samples)
+        expand("output/data/{sample}-sorted.bai", sample = samples),
+        "output/counts/percent_loss_sorted.txt"
 
+# Uses the same input as rule fastp. 
+rule count_raw:
+    input:
+        r1 = "../data/{sample}_R1.fastq",
+        r2 = "../data/{sample}_R2.fastq"
+    output:
+        raw_counts = temp("output/counts/{sample}-raw-count.txt")
+    threads: 
+        1
+    resources: 
+        mem_mb = 4000
+    log: 
+        stderr = "logs/{sample}-raw-count.log"
+    shell:
+        """
+        R1_COUNT=$( cat {input.r1} | wc -l )
+        R2_COUNT=$( cat {input.r2} | wc -l )
+        TOTAL=$( echo "($R1_COUNT + $R2_COUNT)/4" | bc )
+        echo -e "Sample\tRaw_Count" > {output.raw_counts}
+        echo -e "{wildcards.sample}\t$TOTAL" >> {output.raw_counts}
+        """
+
+# Uses the same input as the rule count_raw
 rule fastp: 
     input:
         r1 = "../data/{sample}_R1.fastq",
@@ -73,7 +91,7 @@ rule convert_sam_to_bam:
     input:
         sam = "output/data/{sample}-aligned.sam"
     output:
-        bam = temp("output/data/{sample}-aligned.bam")
+        bam = temp("output/data/{sample}.bam")
     threads: 
         4
     resources: 
@@ -87,9 +105,9 @@ rule convert_sam_to_bam:
 
 rule sort_bam: 
     input:
-        bam = "output/data/{sample}-aligned.bam"
+        bam = "output/data/{sample}.bam"
     output: 
-        bam_sort = "output/data/{sample}.bam"
+        bam_sort = "output/data/{sample}-sorted.bam"
     threads: 
         4
     resources:
@@ -101,38 +119,82 @@ rule sort_bam:
         samtools sort {input.bam} -o {output.bam_sort} 2> {log.stderr}
         """
 
-# Note that you do not need to specify the output variable in the shell script; 
-# in this case, this is the output file that we expect the rule to produce. 
-# As long as the file is produced after the execution of the rule, then it will 
-# work. 
-rule qc:
+# Depends on the output of rules fastp and count_raw for the same sample. 
+rule count_bam:
     input:
-        bam_sort = "output/data/{sample}.bam"
+        bam_sort = "output/data/{sample}-sorted.bam",
+        raw_counts = "output/counts/{sample}-raw-count.txt"
     output:
-        qc = "output/reports/{sample}_fastqc.html"
+        proc_counts = "output/counts/{sample}-processed-counts.txt",
+        merged_counts = "output/counts/{sample}-counts.txt"
     threads: 
-        4
-    resources: 
+        1
+    resources:
         mem_mb = 1000
-    log:
-        stderr = "output/logs/{sample}-qc.log"
-    params:
-        qc_dir = "output/reports"
-    shell:
+    log: 
+        stderr = "output/logs/{sample}-counts.log"
+    shell: 
         """
-        fastqc {input.bam_sort} -o {params.qc_dir} 2> {log.stderr}
+        COUNTS=$( samtools view {input.bam_sort} | wc -l ) 2> {log.stderr}
+        echo "Sample\tFinal_Count" > {output.proc_counts}
+        echo "{wildcards.sample}\t$COUNTS" >> {output.proc_counts}
+
+        join -t $'\t' {input.raw_counts} {output.proc_counts} > {output.merged_counts} 2>> {log.stderr}
         """
 
 rule index_bam: 
     input: 
-        bam_sort = "output/data/{sample}.bam"
+        bam_sort = "output/data/{sample}-sorted.bam"
     output:
-        bai = "output/data/{sample}.bai"
+        bai = "output/data/{sample}-sorted.bai"
     threads: 
         4
+    resources: 
+        mem_mb = 8000
     log:
         stderr = "output/logs/{sample}-indexbam.log"
     shell:  
         """
         samtools index -b {input.bam_sort} -o {output.bai} 2> {log.stderr}
+        """
+
+# Depends on the output for count_bam for every single sample. 
+rule percent_loss:
+    input:
+        count_files = expand("output/counts/{sample}-counts.txt", sample = samples)
+    output:
+        percent_loss = temp("output/counts/percent_loss.txt")
+    threads: 
+        1
+    resources: 
+        mem_mb = 4000
+    log: 
+        stderr = "logs/percentloss.log"
+    shell:
+        """
+        for FILE in {input.count_files}; do
+            DATA=$( tail -n 1 $FILE ) 
+            START=$( tail -n 1 $FILE | cut -f2 )
+            END=$( tail -n 1 $FILE | cut -f3 )
+            PERC_LOSS=$( echo "( $START - $END ) / $START" | bc -l ) 2> {log.stderr}
+            echo -e "${{DATA}}\t${{PERC_LOSS}}" >> {output.percent_loss} 2>> {log.stderr}
+        done
+        """
+
+
+rule percent_loss_sorted: 
+    input:
+        percent_loss = "output/counts/percent_loss.txt"
+    output:
+        percent_loss_sorted = "output/counts/percent_loss_sorted.txt"
+    threads: 
+        1
+    resources: 
+        mem_mb = 4000
+    log: 
+        stderr = "logs/sortpercentloss.log"
+    shell:
+        """
+        echo "Sample\tRaw_Count\tFinal_Count\tPercent_Loss" > {output.percent_loss_sorted} 2> {log.stderr}
+        sort -k 4 -r {input.percent_loss} >> {output.percent_loss_sorted} 2>> {log.stderr}
         """

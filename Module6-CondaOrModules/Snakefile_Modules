@@ -20,15 +20,8 @@ wildcard_constraints:
 
 rule all:
     input: 
-        expand("{out_dir}/data/{sample}.bai", out_dir = out_dir, sample = samples),
-        expand("{out_dir}/reports/{sample}_fastqc.html", out_dir = out_dir, sample = samples)
+        expand("{out_dir}/data/{sample}-sorted.bai", out_dir = out_dir, sample = samples)
 
-# With this pipeline, the software that we need for each rule is added
-# as part of the "shell" command with "module load" statements. By doing
-# this strategy, we can load any module and module version that is 
-# available on the computing environment. Note that this strategy
-# really only works with a high performance computing environment. 
-# Additionally, no special rule decorators are required. 
 rule fastp: 
     input:
         r1 = in_dir + "/{sample}_R1.fastq",
@@ -81,7 +74,7 @@ rule convert_sam_to_bam:
     input:
         sam = "{out_dir}/data/{sample}-aligned.sam"
     output:
-        bam = temp("{out_dir}/data/{sample}-aligned.bam")
+        bam = temp("{out_dir}/data/{sample}.bam")
     threads: 
         4
     resources: 
@@ -96,9 +89,9 @@ rule convert_sam_to_bam:
 
 rule sort_bam: 
     input:
-        bam = "{out_dir}/data/{sample}-aligned.bam"
+        bam = "{out_dir}/data/{sample}.bam"
     output: 
-        bam_sort = "{out_dir}/data/{sample}.bam"
+        bam_sort = "{out_dir}/data/{sample}-sorted.bam"
     threads: 
         4
     resources:
@@ -111,30 +104,11 @@ rule sort_bam:
         samtools sort {input.bam} -o {output.bam_sort} 2> {log.stderr}
         """
 
-rule qc:
-    input:
-        bam_sort = "{out_dir}/data/{sample}.bam"
-    output:
-        qc = "{out_dir}/reports/{sample}_fastqc.html"
-    threads: 
-        4
-    resources: 
-        mem_mb = 1000
-    log:
-        stderr = "{out_dir}/logs/{sample}-qc.log"
-    params:
-        qc_dir = "{out_dir}/reports"
-    shell:
-        """
-        ml samtools
-        fastqc {input.bam_sort} -o {params.qc_dir} 2> {log.stderr}
-        """
-
 rule index_bam: 
     input: 
-        bam_sort = "{out_dir}/data/{sample}.bam"
+        bam_sort = "{out_dir}/data/{sample}-sorted.bam"
     output:
-        bai = "{out_dir}/data/{sample}.bai"
+        bai = "{out_dir}/data/{sample}-sorted.bai"
     threads: 
         4
     log:

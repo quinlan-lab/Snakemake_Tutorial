@@ -3,20 +3,7 @@ import snakemake
 import os
 import re
 
-# If we want our workflow to be portable, you might want 
-# to provide a configuration file instead of hard-coding files and 
-# paths. 
-
-# We can define our configuration file as a .yaml file, and these values
-# can be accessed in Python. 
-# We need to define a special "configfile" in a Snakefile, and this will 
-# load a special dictionary object called "config". The key values correspond
-# to the key values in the .yaml files. See "config.yaml" for these paths and values. 
-
-# Typically, snakemake looks for "config.yaml" in the same directory of the 
-# snakefile, but specific configuration files can be defined using the 
-# "--configfile=path/to/file" command line option. 
-
+# Grab important paths and values from our configuration file. 
 configfile: 'config.yaml'
 in_dir: str = config["input_directory"]
 out_dir: str = config["output_directory"]
@@ -26,7 +13,6 @@ samples: list[str] = config["samples"]
 # Format
 in_dir = in_dir.rstrip("/")
 out_dir = out_dir.rstrip("/")
-
 
 # Do not forget to update the constraints!
 wildcard_constraints: 
@@ -46,13 +32,8 @@ wildcard_constraints:
 
 rule all:
     input: 
-        expand("{out_dir}/data/{sample}.bai", out_dir = out_dir, sample = samples),
-        expand("{out_dir}/reports/{sample}_fastqc.html", out_dir = out_dir, sample = samples)
+        expand("{out_dir}/data/{sample}-sorted.bai", out_dir = out_dir, sample = samples)
 
-# However, a problem with our in_dir is that there is no resolution for it!
-# So an alternative strategy, instead of using it as a wildcard, is using it as-is; as a regular string. 
-# We can use python code to concatenate our in directory with the rest of the string; in this 
-# case, the sample wildcard with R1 or R2. 
 rule fastp: 
     input:
         r1 = in_dir + "/{sample}_R1.fastq",
@@ -105,7 +86,7 @@ rule convert_sam_to_bam:
     input:
         sam = "{out_dir}/data/{sample}-aligned.sam"
     output:
-        bam = temp("{out_dir}/data/{sample}-aligned.bam")
+        bam = temp("{out_dir}/data/{sample}.bam")
     threads: 
         4
     resources: 
@@ -119,9 +100,9 @@ rule convert_sam_to_bam:
 
 rule sort_bam: 
     input:
-        bam = "{out_dir}/data/{sample}-aligned.bam"
+        bam = "{out_dir}/data/{sample}.bam"
     output: 
-        bam_sort = "{out_dir}/data/{sample}.bam"
+        bam_sort = "{out_dir}/data/{sample}-sorted.bam"
     threads: 
         4
     resources:
@@ -133,35 +114,15 @@ rule sort_bam:
         samtools sort {input.bam} -o {output.bam_sort} 2> {log.stderr}
         """
 
-# Note that you do not need to specify the output variable in the shell script; 
-# in this case, this is the output file that we expect the rule to produce. 
-# As long as the file is produced after the execution of the rule, then it will 
-# work. 
-rule qc:
-    input:
-        bam_sort = "{out_dir}/data/{sample}.bam"
+rule index_bam: 
+    input: 
+        bam_sort = "{out_dir}/data/{sample}-sorted.bam"
     output:
-        qc = "{out_dir}/reports/{sample}_fastqc.html"
+        bai = "{out_dir}/data/{sample}-sorted.bai"
     threads: 
         4
     resources: 
-        mem_mb = 1000
-    log:
-        stderr = "{out_dir}/logs/{sample}-qc.log"
-    params:
-        qc_dir = "{out_dir}/reports"
-    shell:
-        """
-        fastqc {input.bam_sort} -o {params.qc_dir} 2> {log.stderr}
-        """
-
-rule index_bam: 
-    input: 
-        bam_sort = "{out_dir}/data/{sample}.bam"
-    output:
-        bai = "{out_dir}/data/{sample}.bai"
-    threads: 
-        4
+        mem_mb = 8000
     log:
         stderr = "{out_dir}/logs/{sample}-indexbam.log"
     shell:  

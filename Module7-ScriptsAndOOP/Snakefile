@@ -19,8 +19,9 @@ wildcard_constraints:
 
 rule all:
     input: 
-        expand("{out_dir}/data/{sample}.bai", out_dir = out_dir, sample = samples),
-        expand("{out_dir}/reports/{sample}_fastqc.html", out_dir = out_dir, sample = samples)
+        expand("{out_dir}/data/{sample}-sorted.bai", out_dir = out_dir, sample = samples),
+        expand("{out_dir}/cigar/{sample}-fullmatch.txt", out_dir = out_dir, sample = samples), 
+        expand("{out_dir}/mapq/{sample}-avgmapq.txt", out_dir = out_dir, sample = samples)
 
 rule fastp: 
     input:
@@ -35,13 +36,14 @@ rule fastp:
         4
     resources:
         mem_mb = 4000
+    conda: 
+        "envs/bioinformatics.yaml"
     log:
         stderr = "{out_dir}/logs/{sample}-fastp.log"
     params:
         qual = 20
     shell:
         """
-        ml fastp
         fastp --in1 {input.r1} --in2 {input.r2} \
         --out1 {output.r1_clean} --out2 {output.r2_clean} \
         --detect_adapter_for_pe \
@@ -62,28 +64,62 @@ rule bwa_mem:
         4
     resources: 
         mem_mb = 4000
+    conda: 
+        "envs/bioinformatics.yaml"
     log:
         stderr = "{out_dir}/logs/{sample}-bwamem.log"
     shell: 
         """
-        ml bwa
         bwa mem {input.ref} {input.r1_clean} {input.r2_clean} -t {threads} > {output.sam} 2> {log.stderr}
         """
+
+rule full_cigar: 
+    input: 
+        sam = rules.bwa_mem.output.sam
+    output:
+        cigar_counts = "{out_dir}/cigar/{sample}-fullmatch.txt"
+    threads: 
+        1
+    resources:
+        mem_mb = 1000
+    conda: 
+        "envs/bioinformatics.yaml"
+    log: 
+        "{out_dir}/logs/{sample}-cigar.log"
+    script:
+        "scripts/full_match_cigar.py"
+
+rule average_mapq: 
+    input: 
+        sam = rules.bwa_mem.output.sam
+    output:
+        avg_mapq = "{out_dir}/mapq/{sample}-avgmapq.txt"
+    threads: 
+        1
+    resources:
+        mem_mb = 1000
+    conda: 
+        "envs/bioinformatics.yaml"
+    log: 
+        "{out_dir}/logs/{sample}-mapq.log"
+    script:
+        "scripts/average_mapq.R"
 
 rule convert_sam_to_bam: 
     input:
         sam = rules.bwa_mem.output.sam
     output:
-        bam = temp("{out_dir}/data/{sample}-aligned.bam")
+        bam = temp("{out_dir}/data/{sample}.bam")
     threads: 
         4
     resources: 
         mem_mb = 1000
+    conda: 
+        "envs/bioinformatics.yaml"
     log:
         stderr = "{out_dir}/logs/{sample}_convert.log"
     shell:
         """
-        ml samtools
         samtools view --bam {input.sam} -o {output.bam} 2> {log.stderr}
         """
 
@@ -91,49 +127,32 @@ rule sort_bam:
     input:
         bam = rules.convert_sam_to_bam.output.bam
     output: 
-        bam_sort = "{out_dir}/data/{sample}.bam"
+        bam_sort = "{out_dir}/data/{sample}-sorted.bam"
     threads: 
         4
     resources:
         mem_mb = 4000
+    conda: 
+        "envs/bioinformatics.yaml"
     log:
         stderr = "{out_dir}/logs/{sample}-sort.log"
     shell:
         """
-        ml samtools
         samtools sort {input.bam} -o {output.bam_sort} 2> {log.stderr}
-        """
-
-rule qc:
-    input:
-        bam_sort = rules.sort_bam.output.bam_sort
-    output:
-        qc = "{out_dir}/reports/{sample}_fastqc.html"
-    threads: 
-        4
-    resources: 
-        mem_mb = 1000
-    log:
-        stderr = "{out_dir}/logs/{sample}-qc.log"
-    params:
-        qc_dir = "{out_dir}/reports"
-    shell:
-        """
-        ml samtools
-        fastqc {input.bam_sort} -o {params.qc_dir} 2> {log.stderr}
         """
 
 rule index_bam: 
     input: 
         bam_sort = rules.sort_bam.output.bam_sort
     output:
-        bai = "{out_dir}/data/{sample}.bai"
+        bai = "{out_dir}/data/{sample}-sorted.bai"
     threads: 
         4
+    conda: 
+        "envs/bioinformatics.yaml"
     log:
         stderr = "{out_dir}/logs/{sample}-indexbam.log"
     shell:  
         """
-        ml samtools
         samtools index -b {input.bam_sort} -o {output.bai} 2> {log.stderr}
         """

@@ -7,5 +7,6 @@ dependencies:
     - bwa=0.7.17
     - fastp=0.23.4
     - fastqc=0.12.1
+    - r-base=4.2.2
     - samtools=1.17
     

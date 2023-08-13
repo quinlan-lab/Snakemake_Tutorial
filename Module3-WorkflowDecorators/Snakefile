@@ -14,24 +14,9 @@ wildcard_constraints:
 
 rule all:
     input: 
-        expand("output/data/{sample}-aligned.bam", sample = samples)
+        expand("output/data/{sample}.bam", sample = samples)
 
-# Software in some rules might need more resources. These can be provided
-# threads, which correspond to CPU cores. 
-# For example, this rule has 8 threads per instance. If we run
-# "snakemake --cores 32", we can have 4 concurrent "fastp" rules running. 
-
-# Some rules might also require explicit memory management. Resources
-# decorator can be used to define memory resources. 
-
-# We may also want to provide log output to our running processes. For this, 
-# we can define "log" decorator. This has to take the same wildcards 
-# as the output. 
-
-# Parameters may also be defined. These don't necessarily need to be files, 
-# so these can be useful for dynamically defined variables during runtime in the 
-# python code preceding the workflow. Below, we define the average quality 
-# needed for filtering. 
+# We give this rule 4 threads, 4GB memory, and output a log file. 
 rule fastp: 
     input:
         r1 = "../data/{sample}_R1.fastq",
@@ -82,7 +67,7 @@ rule convert_sam_to_bam:
     input:
         sam = "output/data/{sample}-aligned.sam"
     output:
-        bam = "output/data/{sample}-aligned.bam"
+        bam = "output/data/{sample}.bam"
     threads: 
         4
     resources: 
@@ -92,4 +77,36 @@ rule convert_sam_to_bam:
     shell:
         """
         samtools view --bam {input.sam} -o {output.bam} 2> {log.stderr}
+        """
+
+rule sort_bam: 
+    input:
+        bam = "output/data/{sample}.bam"
+    output: 
+        bam_sort = "output/data/{sample}-sorted.bam"
+    threads: 
+        4
+    resources:
+        mem_mb = 4000
+    log:
+        stderr = "output/logs/{sample}-sort.log"
+    shell:
+        """
+        samtools sort {input.bam} -o {output.bam_sort} 2> {log.stderr}
+        """
+
+rule index_bam: 
+    input: 
+        bam_sort = "output/data/{sample}-sorted.bam"
+    output:
+        bai = "output/data/{sample}-sorted.bai"
+    threads: 
+        4
+    resources: 
+        mem_mb = 8000
+    log:
+        stderr = "output/logs/{sample}-indexbam.log"
+    shell:  
+        """
+        samtools index -b {input.bam_sort} -o {output.bai} 2> {log.stderr}
         """

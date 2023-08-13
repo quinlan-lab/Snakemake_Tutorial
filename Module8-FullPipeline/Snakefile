@@ -1,0 +1,250 @@
+### IMPORTS ###
+import snakemake 
+import os
+import re
+
+configfile: 'config.yaml'
+in_dir: str = config["input_directory"]
+out_dir: str = config["output_directory"]
+reference: str = config["reference_genome"]
+samples: list[str] = config["samples"]
+
+# Format
+in_dir = in_dir.rstrip("/")
+out_dir = out_dir.rstrip("/")
+
+wildcard_constraints: 
+    out_dir = out_dir,
+    sample = "[A-Za-z0-9]+"
+
+rule all:
+    input: 
+        expand("{out_dir}/data/{sample}-sorted.bai", out_dir = out_dir, sample = samples),
+        expand("{out_dir}/counts/percent_loss_sorted.txt", out_dir = out_dir),
+        expand("{out_dir}/cigar/{sample}-fullmatch.txt", out_dir = out_dir, sample = samples), 
+        expand("{out_dir}/mapq/{sample}-avgmapq.txt", out_dir = out_dir, sample = samples)
+
+rule count_raw:
+    input:
+        r1 = in_dir + "/{sample}_R1.fastq",
+        r2 = in_dir + "/{sample}_R2.fastq"
+    output:
+        raw_counts = temp("{out_dir}/counts/{sample}-raw-count.txt")
+    threads: 
+        1
+    resources: 
+        mem_mb = 4000
+    conda: 
+        "envs/bioinformatics.yaml"
+    log: 
+        stderr = "{out_dir}/logs/{sample}-raw-count.log"
+    shell:
+        """
+        R1_COUNT=$( cat {input.r1} | wc -l )
+        R2_COUNT=$( cat {input.r2} | wc -l )
+        TOTAL=$( echo "($R1_COUNT + $R2_COUNT)/4" | bc )
+        echo -e "Sample\tRaw_Count" > {output.raw_counts}
+        echo -e "{wildcards.sample}\t$TOTAL" >> {output.raw_counts}
+        """
+
+rule fastp: 
+    input:
+        r1 = in_dir + "/{sample}_R1.fastq",
+        r2 = in_dir + "/{sample}_R2.fastq"
+    output:
+        r1_clean = "{out_dir}/data/{sample}_R1.clean.fastq",
+        r2_clean = "{out_dir}/data/{sample}_R2.clean.fastq",
+        html_report = "{out_dir}/reports/{sample}-fastp-report.html",
+        json_report = "{out_dir}/reports/{sample}-fastp-report.json"
+    threads: 
+        4
+    resources:
+        mem_mb = 4000
+    conda: 
+        "envs/bioinformatics.yaml"
+    log:
+        stderr = "{out_dir}/logs/{sample}-fastp.log"
+    params:
+        qual = 20
+    shell:
+        """
+        fastp --in1 {input.r1} --in2 {input.r2} \
+        --out1 {output.r1_clean} --out2 {output.r2_clean} \
+        --detect_adapter_for_pe \
+        --average_qual {params.qual} \
+        --thread {threads} \
+        --html {output.html_report} \
+        --json {output.json_report} 2> {log.stderr}
+        """
+
+rule bwa_mem: 
+    input:
+        r1_clean = rules.fastp.output.r1_clean,
+        r2_clean = rules.fastp.output.r2_clean,
+        ref = reference
+    output:
+        sam = temp("{out_dir}/data/{sample}-aligned.sam")
+    threads: 
+        4
+    resources: 
+        mem_mb = 4000
+    conda: 
+        "envs/bioinformatics.yaml"
+    log:
+        stderr = "{out_dir}/logs/{sample}-bwamem.log"
+    shell: 
+        """
+        bwa mem {input.ref} {input.r1_clean} {input.r2_clean} -t {threads} > {output.sam} 2> {log.stderr}
+        """
+
+rule full_cigar: 
+    input: 
+        sam = rules.bwa_mem.output.sam
+    output:
+        cigar_counts = "{out_dir}/cigar/{sample}-fullmatch.txt"
+    threads: 
+        1
+    resources:
+        mem_mb = 1000
+    conda: 
+        "envs/bioinformatics.yaml"
+    log: 
+        "{out_dir}/logs/{sample}-cigar.log"
+    script:
+        "scripts/full_match_cigar.py"
+
+rule average_mapq: 
+    input: 
+        sam = rules.bwa_mem.output.sam
+    output:
+        avg_mapq = "{out_dir}/mapq/{sample}-avgmapq.txt"
+    threads: 
+        1
+    resources:
+        mem_mb = 1000
+    conda: 
+        "envs/bioinformatics.yaml"
+    log: 
+        "{out_dir}/logs/{sample}-mapq.log"
+    script:
+        "scripts/average_mapq.R"
+
+rule convert_sam_to_bam: 
+    input:
+        sam = rules.bwa_mem.output.sam
+    output:
+        bam = temp("{out_dir}/data/{sample}.bam")
+    threads: 
+        4
+    resources: 
+        mem_mb = 1000
+    conda: 
+        "envs/bioinformatics.yaml"
+    log:
+        stderr = "{out_dir}/logs/{sample}_convert.log"
+    shell:
+        """
+        samtools view --bam {input.sam} -o {output.bam} 2> {log.stderr}
+        """
+
+rule sort_bam: 
+    input:
+        bam = rules.convert_sam_to_bam.output.bam
+    output: 
+        bam_sort = "{out_dir}/data/{sample}-sorted.bam"
+    threads: 
+        4
+    resources:
+        mem_mb = 4000
+    conda: 
+        "envs/bioinformatics.yaml"
+    log:
+        stderr = "{out_dir}/logs/{sample}-sort.log"
+    shell:
+        """
+        samtools sort {input.bam} -o {output.bam_sort} 2> {log.stderr}
+        """
+
+rule count_bam:
+    input:
+        bam_sort = rules.sort_bam.output.bam_sort,
+        raw_counts = rules.count_raw.output.raw_counts
+    output:
+        proc_counts = "{out_dir}/counts/{sample}-processed-counts.txt",
+        merged_counts = "{out_dir}/counts/{sample}-counts.txt"
+    threads: 
+        1
+    resources:
+        mem_mb = 1000
+    log: 
+        stderr = "{out_dir}/logs/{sample}-counts.log"
+    shell: 
+        """
+        COUNTS=$( samtools view {input.bam_sort} | wc -l ) 2> {log.stderr}
+        echo "Sample\tFinal_Count" > {output.proc_counts}
+        echo "{wildcards.sample}\t$COUNTS" >> {output.proc_counts}
+
+        join -t $'\t' {input.raw_counts} {output.proc_counts} > {output.merged_counts} 2>> {log.stderr}
+        """
+
+rule index_bam: 
+    input: 
+        bam_sort = rules.sort_bam.output.bam_sort
+    output:
+        bai = "{out_dir}/data/{sample}-sorted.bai"
+    threads: 
+        4
+    resources:
+        mem_mb = 8000
+    conda: 
+        "envs/bioinformatics.yaml"
+    log:
+        stderr = "{out_dir}/logs/{sample}-indexbam.log"
+    shell:  
+        """
+        samtools index -b {input.bam_sort} -o {output.bai} 2> {log.stderr}
+        """
+
+rule percent_loss:
+    input:
+        count_files = expand(rules.count_bam.output.merged_counts, out_dir = out_dir, sample = samples)
+    output:
+        percent_loss = temp("{out_dir}/counts/percent_loss.txt")
+    threads: 
+        1
+    resources: 
+        mem_mb = 4000
+    conda: 
+        "envs/bioinformatics.yaml"
+    log: 
+        stderr = "{out_dir}/logs/percentloss.log"
+    shell:
+        """
+        for FILE in {input.count_files}; do
+            DATA=$( tail -n 1 $FILE ) 
+            START=$( tail -n 1 $FILE | cut -f2 )
+            END=$( tail -n 1 $FILE | cut -f3 )
+            PERC_LOSS=$( echo "( $START - $END ) / $START" | bc -l ) 2> {log.stderr}
+            echo -e "${{DATA}}\t${{PERC_LOSS}}" >> {output.percent_loss} 2>> {log.stderr}
+        done
+        """
+
+
+rule percent_loss_sorted: 
+    input:
+        percent_loss = rules.percent_loss.output.percent_loss
+    output:
+        percent_loss_sorted = "{out_dir}/counts/percent_loss_sorted.txt"
+    threads: 
+        1
+    resources: 
+        mem_mb = 4000
+    conda: 
+        "envs/bioinformatics.yaml"
+    log: 
+        stderr = "{out_dir}/logs/sortpercentloss.log"
+    shell:
+        """
+        echo "Sample\tRaw_Count\tFinal_Count\tPercent_Loss" > {output.percent_loss_sorted} 2> {log.stderr}
+        sort -k 4 -r {input.percent_loss} >> {output.percent_loss_sorted} 2>> {log.stderr}
+        """

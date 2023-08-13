@@ -19,17 +19,8 @@ wildcard_constraints:
 
 rule all:
     input: 
-        expand("{out_dir}/data/{sample}.bai", out_dir = out_dir, sample = samples),
-        expand("{out_dir}/reports/{sample}_fastqc.html", out_dir = out_dir, sample = samples)
+        expand("{out_dir}/data/{sample}-sorted.bai", out_dir = out_dir, sample = samples)
 
-# For this pipeline, our computing environment will be defined by 
-# conda environments. These can be specified usin the "conda" rule
-# decorator. This decorator should point to the environment ".yaml" file 
-# that will be used for the rule. By doing this, you can have specific environments
-# and software versions for each rule. 
-# Before execution, Snakemake will install these environments. 
-# To use conda environments, add "--use-conda" to the command line interface.
-# "snakemake --cores 32 --use-conda"
 rule fastp: 
     input:
         r1 = in_dir + "/{sample}_R1.fastq",
@@ -84,7 +75,7 @@ rule convert_sam_to_bam:
     input:
         sam = "{out_dir}/data/{sample}-aligned.sam"
     output:
-        bam = temp("{out_dir}/data/{sample}-aligned.bam")
+        bam = temp("{out_dir}/data/{sample}.bam")
     threads: 
         4
     resources: 
@@ -100,9 +91,9 @@ rule convert_sam_to_bam:
 
 rule sort_bam: 
     input:
-        bam = "{out_dir}/data/{sample}-aligned.bam"
+        bam = "{out_dir}/data/{sample}.bam"
     output: 
-        bam_sort = "{out_dir}/data/{sample}.bam"
+        bam_sort = "{out_dir}/data/{sample}-sorted.bam"
     threads: 
         4
     resources:
@@ -116,31 +107,11 @@ rule sort_bam:
         samtools sort {input.bam} -o {output.bam_sort} 2> {log.stderr}
         """
 
-rule qc:
-    input:
-        bam_sort = "{out_dir}/data/{sample}.bam"
-    output:
-        qc = "{out_dir}/reports/{sample}_fastqc.html"
-    threads: 
-        4
-    resources: 
-        mem_mb = 1000
-    conda: 
-        "envs/bioinformatics.yaml"
-    log:
-        stderr = "{out_dir}/logs/{sample}-qc.log"
-    params:
-        qc_dir = "{out_dir}/reports"
-    shell:
-        """
-        fastqc {input.bam_sort} -o {params.qc_dir} 2> {log.stderr}
-        """
-
 rule index_bam: 
     input: 
-        bam_sort = "{out_dir}/data/{sample}.bam"
+        bam_sort = "{out_dir}/data/{sample}-sorted.bam"
     output:
-        bai = "{out_dir}/data/{sample}.bai"
+        bai = "{out_dir}/data/{sample}-sorted.bai"
     threads: 
         4
     conda: 

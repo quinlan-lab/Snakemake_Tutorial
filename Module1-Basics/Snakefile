@@ -8,47 +8,15 @@ samples: list[str] = [
     "Sample3"
 ]
 
-# Wildcards (the words in {}) are used to keep the files in track and 
-# through the rest of the pipeline. These wildcards can be used to reference
-# the same string of operations (like performing all operations corresponding
-# to Sample1), but these wildcards still need to be resolved at some point to 
-# tell Snakemake what it is populating the wildcards with. 
-
-# Commonly, the rule "all" is used to "catchall output". This is where the final
-# output of all branches of a pipeline are commonly defined. This is also where 
-# the wildcards are resolved; here, the wildcard "sample" is expanded to mean all 
-# of our samples defined in the "samples" list; the operations will be performed 
-# independently on Sample1, Sample2, and Sample3. 
+# Rule 'all', defining all requested output.
 rule all:
     input: 
         expand("output/data/{sample}_R1.clean.fastq", sample = samples),
         expand("output/data/{sample}_R2.clean.fastq", sample = samples)
 
-# The same wildcard is propogated back through the pipeline so each instance of the rule
-# uses the same wildcard. In "rule all", for example, "Sample1" is propogated backwards "up"
-# to "rule fastq", and in this instance, the "sample" wildcard is evaluated to "Sample1"
-# in all of these inputs and outputs. 
-
-# This rule is performed three independent times for all three samples. 
-
-# The most basic rules are split into three portions: "input", which is
-# the input file to the rule, "output", which are output files expected
-# by the operations of the rule, and then a block of code that will 
-# define the operation. "shell" is commonly used to define bash or 
-# shell operations, such as the "fastp" call below. Other acceptable 
-# option are "script", which can refer to Python or R scripts, and 
-# "code", which can be populated by raw Python code. 
-
-# Additionally, inputs and outputs are referred to in these code blocks
-# using brackets {}. 
-# In our fastp command line operation, we need to define two inputs, --in1
-# and --in2 for the paired end reads of our files. 
-# When the rule in instantiated, our input r1 will evaluate to 
-# ../data/{sample}_R1.fastq -> ../data/Sample1_R1.fastq
-# This is then used in our code block, where the first line will be resolved to: 
-# fastp --in1 ../data/Sample1_R1.fastq --in2 ../data/Sample1_R2.fastq \
-# This also applies all inputs, outputs, and other options used. Take a look to 
-# try to see for yourself!
+# Rule 'fastp' preprocesses the reads by detecting and removing adapters,
+# filtering reads with an average quality less than 20, and producing 
+# filtered fastq reads with preprocessing reports.
 rule fastp: 
     input:
         r1 = "../data/{sample}_R1.fastq",

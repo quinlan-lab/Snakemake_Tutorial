@@ -11,11 +11,14 @@ samples: list[str] = [
 wildcard_constraints: 
     sample = "[A-Za-z0-9]+"
 
-# Multiple rules; only need the ending rule output, not the intermediate output
+# Rule 'all', defining all requested output.
 rule all:
     input: 
-        expand("output/data/{sample}-aligned.bam", sample = samples)
+        expand("output/data/{sample}-sorted.bai", sample = samples)
 
+# Rule 'fastp' preprocesses the reads by detecting and removing adapters,
+# filtering reads with an average quality less than 20, and producing 
+# filtered fastq reads with preprocessing reports.
 rule fastp: 
     input:
         r1 = "../data/{sample}_R1.fastq",
@@ -36,18 +39,12 @@ rule fastp:
         --json {output.json_report}
         """
 
-# Input same as previous rule output. Snakemake scans rules for 
-# rules that generate output matching this rule's input. 
-
-# Some rules are more involved and need more resources. Define threads
-# to tell snakemake how many resources to give this. 
-# Threads is the same as cores; if you run "snakemake --cores 32" and 
-# define the threads for bwa_mem as 16, then you can run 2 concurrent bwa_mem processes. 
+# Aligns cleaned fastq reads to the defined reference genome. 
 rule bwa_mem: 
     input:
         r1_clean = "output/data/{sample}_R1.clean.fastq",
         r2_clean = "output/data/{sample}_R2.clean.fastq",
-        ref = "../reference/GRCh38.fa"
+        ref = "../reference/chr1-3.fa"
     output:
         sam = temp("output/data/{sample}-aligned.sam")
     shell: 
@@ -55,12 +52,34 @@ rule bwa_mem:
         bwa mem {input.ref} {input.r1_clean} {input.r2_clean} > {output.sam}
         """
 
+# Converts the sam output of bwa mem to bam, only retaining the 
+# aligned reads. 
 rule convert_sam_to_bam: 
     input:
         sam = "output/data/{sample}-aligned.sam"
     output:
-        bam = "output/data/{sample}-aligned.bam"
+        bam = temp("output/data/{sample}.bam")
     shell:
         """
         samtools view -F 4 --bam {input.sam} -o {output.bam}
+        """
+
+rule sort_bam: 
+    input:
+        bam = "output/data/{sample}.bam"
+    output: 
+        bam_sort = "output/data/{sample}-sorted.bam"
+    shell:
+        """
+        samtools sort {input.bam} -o {output.bam_sort}
+        """
+
+rule index_bam: 
+    input: 
+        bam_sort = "output/data/{sample}-sorted.bam"
+    output:
+        bai = "output/data/{sample}-sorted.bai"
+    shell:  
+        """
+        samtools index -b {input.bam_sort} -o {output.bai}
         """
