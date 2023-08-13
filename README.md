@@ -2,6 +2,9 @@
 Joshua L. Major-Mincer 
 Last updated: 08/14/23
 
+## WARNING
+**Please ensure that you are on a compute or interactive node if you are testing this on the CHPC, NOT on a login node!**
+
 ## Quickstart
 ```
 # Get snakemake tutorial. 
@@ -16,6 +19,10 @@ wget https://snakemake-tutorial.s3.us-west-1.amazonaws.com/reference.tar.gz -O r
 # Uncompress files. 
 tar -zxvf data.tar.gz
 tar -zxvf reference.tar.gz
+
+# Remove the archives if desired. 
+rm data.tar.gz 
+rm reference.tar.gz 
 
 # Create snakemake environment using conda. 
 conda env create -f envs/snakemake_env.yaml
