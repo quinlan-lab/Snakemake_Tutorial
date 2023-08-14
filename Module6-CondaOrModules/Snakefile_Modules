@@ -41,7 +41,7 @@ rule fastp:
         qual = 20
     shell:
         """
-        ml fastp
+        ml fastp/0.20.1
         fastp --in1 {input.r1} --in2 {input.r2} \
         --out1 {output.r1_clean} --out2 {output.r2_clean} \
         --detect_adapter_for_pe \
@@ -66,7 +66,7 @@ rule bwa_mem:
         stderr = "{out_dir}/logs/{sample}-bwamem.log"
     shell: 
         """
-        ml bwa
+        ml bwa/0.7.17
         bwa mem {input.ref} {input.r1_clean} {input.r2_clean} -t {threads} > {output.sam} 2> {log.stderr}
         """
 
@@ -83,7 +83,7 @@ rule convert_sam_to_bam:
         stderr = "{out_dir}/logs/{sample}_convert.log"
     shell:
         """
-        ml samtools
+        ml samtools/1.16
         samtools view --bam {input.sam} -o {output.bam} 2> {log.stderr}
         """
 
@@ -100,7 +100,7 @@ rule sort_bam:
         stderr = "{out_dir}/logs/{sample}-sort.log"
     shell:
         """
-        ml samtools
+        ml samtools/1.16
         samtools sort {input.bam} -o {output.bam_sort} 2> {log.stderr}
         """
 
@@ -115,6 +115,6 @@ rule index_bam:
         stderr = "{out_dir}/logs/{sample}-indexbam.log"
     shell:  
         """
-        ml samtools
+        ml samtools/1.16
         samtools index -b {input.bam_sort} -o {output.bai} 2> {log.stderr}
         """
