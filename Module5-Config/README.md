@@ -1,6 +1,6 @@
 # Module 
 Joshua L. Major-Mincer  
-Last Updated: 08/11/23
+Last Updated: 03/24/2025
 
 ## Run Command
 ```
@@ -11,7 +11,7 @@ snakemake --cores 32 --configfile=config.yaml
 ## Description
 Snakemake workflows are best developed with reproducibility and transportability in mind. Up until this point, however, the execution of the workflow has been dependent on input data living in the `../data/` directory and output being pushed to the `output/...` directories. If you wanted to reuse this workflow, if may be possible to manually change every path for the specific use case. However, this can become tedious, especially if there are many people that want to use the workflow.  
 The best option for reproducibility and transportability is a `config.yaml`, which is a `.yaml` file that can be intaken by Snakemake and be used to define any sort of variable that you would want to for the execution of the workflow.  
-In this module, we cover the concept of the configuration file, with minor topics like the `--configfile` command line argument, combinatorial `wilcard` expansions, and code before Snakemake. 
+In this module, we cover the concept of the configuration file, with minor topics like the `--configfile` command line argument, combinatorial `wildcard` expansions, and code before Snakemake. 
 
 ## Workflow
 ![DAG](dag.png)

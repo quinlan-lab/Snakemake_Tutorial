@@ -15,7 +15,7 @@ wildcard_constraints:
 
 rule all:
     input: 
-        expand("output/data/{sample}-sorted.bai", sample = samples),
+        expand("output/data/{sample}-sorted.bai", sample=samples),
         "output/counts/percent_loss_sorted.txt"
 
 # Uses the same input as rule fastp. 
@@ -30,7 +30,7 @@ rule count_raw:
     resources: 
         mem_mb = 4000
     log: 
-        stderr = "logs/{sample}-raw-count.log"
+        stderr = "output/logs/{sample}-raw-count.log"
     shell:
         """
         R1_COUNT=$( cat {input.r1} | wc -l )
@@ -46,8 +46,8 @@ rule fastp:
         r1 = "../data/{sample}_R1.fastq",
         r2 = "../data/{sample}_R2.fastq"
     output:
-        r1_clean = "output/data/{sample}_R1.clean.fastq",
-        r2_clean = "output/data/{sample}_R2.clean.fastq",
+        r1_clean = temp("output/data/{sample}_R1.clean.fastq"),
+        r2_clean = temp("output/data/{sample}_R2.clean.fastq"),
         html_report = "output/reports/{sample}-fastp-report.html",
         json_report = "output/reports/{sample}-fastp-report.json"
     threads: 
@@ -55,18 +55,19 @@ rule fastp:
     resources:
         mem_mb = 4000
     log:
-        stderr = "logs/{sample}-fastp.log"
+        stderr = "output/logs/{sample}-fastp.log"
     params:
         qual = 20
     shell:
         """
-        fastp --in1 {input.r1} --in2 {input.r2} \
-        --out1 {output.r1_clean} --out2 {output.r2_clean} \
-        --detect_adapter_for_pe \
-        --average_qual {params.qual} \
-        --thread {threads} \
-        --html {output.html_report} \
-        --json {output.json_report} 2> {log.stderr}
+        fastp \
+            --in1 {input.r1} --in2 {input.r2} \
+            --out1 {output.r1_clean} --out2 {output.r2_clean} \
+            --detect_adapter_for_pe \
+            --average_qual {params.qual} \
+            --thread {threads} \
+            --html {output.html_report} \
+            --json {output.json_report} 2> {log.stderr}
         """
 
 rule bwa_mem: 
@@ -81,10 +82,13 @@ rule bwa_mem:
     resources: 
         mem_mb = 4000
     log:
-        stderr = "logs/{sample}-bwamem.log"
+        stderr = "output/logs/{sample}-bwamem.log"
     shell: 
         """
-        bwa mem {input.ref} {input.r1_clean} {input.r2_clean} -t {threads} > {output.sam} 2> {log.stderr}
+        bwa mem \
+            {input.ref} {input.r1_clean} {input.r2_clean} \
+            -t {threads} \
+            > {output.sam} 2> {log.stderr}
         """
 
 rule convert_sam_to_bam: 
@@ -97,7 +101,7 @@ rule convert_sam_to_bam:
     resources: 
         mem_mb = 1000
     log:
-        stderr = "logs/{sample}_convert.log"
+        stderr = "output/logs/{sample}_convert.log"
     shell:
         """
         samtools view -F 4 --bam {input.sam} -o {output.bam} 2> {log.stderr}
@@ -125,8 +129,8 @@ rule count_bam:
         bam_sort = "output/data/{sample}-sorted.bam",
         raw_counts = "output/counts/{sample}-raw-count.txt"
     output:
-        proc_counts = "output/counts/{sample}-processed-counts.txt",
-        merged_counts = "output/counts/{sample}-counts.txt"
+        proc_counts = temp("output/counts/{sample}-processed-counts.txt"),
+        merged_counts = temp("output/counts/{sample}-counts.txt")
     threads: 
         1
     resources:
@@ -161,7 +165,10 @@ rule index_bam:
 # Depends on the output for count_bam for every single sample. 
 rule percent_loss:
     input:
-        count_files = expand("output/counts/{sample}-counts.txt", sample = samples)
+        count_files = expand(
+            "output/counts/{sample}-counts.txt",
+            sample=samples
+        )
     output:
         percent_loss = temp("output/counts/percent_loss.txt")
     threads: 
@@ -169,7 +176,7 @@ rule percent_loss:
     resources: 
         mem_mb = 4000
     log: 
-        stderr = "logs/percentloss.log"
+        stderr = "output/logs/percentloss.log"
     shell:
         """
         for FILE in {input.count_files}; do
@@ -192,7 +199,7 @@ rule percent_loss_sorted:
     resources: 
         mem_mb = 4000
     log: 
-        stderr = "logs/sortpercentloss.log"
+        stderr = "output/logs/sortpercentloss.log"
     shell:
         """
         echo "Sample\tRaw_Count\tFinal_Count\tPercent_Loss" > {output.percent_loss_sorted} 2> {log.stderr}

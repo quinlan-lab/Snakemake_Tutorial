@@ -1,3 +1,6 @@
 *.snakemake
 *output
 *conda_envs
+data.tar.gz
+reference.tar.gz
+*data

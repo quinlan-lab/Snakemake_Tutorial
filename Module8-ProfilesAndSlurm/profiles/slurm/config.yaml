@@ -1,0 +1,21 @@
+### GENERAL BEHAVIOR
+rerun-incomplete: true
+rerun-triggers:
+- mtime
+
+software-deployment-method: conda
+conda-prefix: conda_envs/
+
+### CLUSTER BEHAVIOR
+executor: slurm
+retries: 1
+jobs: 20
+resources:
+- threads=30
+- mem_mb=50000
+
+default-resources:
+- slurm_account="account"
+- slurm_partition="partition"
+- mem_mb=4000
+- runtime=1440

@@ -1,6 +1,6 @@
 # Snakemake Tutorial
 Joshua L. Major-Mincer 
-Last updated: 08/14/23
+Last updated: 03/24/2025
 
 ## WARNING
 **Please ensure that you are on a compute or interactive node if you are testing this on the CHPC, NOT on a login node!**
@@ -43,7 +43,8 @@ Each module serves a purpose to introduce one or a few new concepts to build upo
 5. Module 5 - Config: Configurations are `.yaml` files that provide flexibility to the workflow using defined dictionary options. 
 6. Module 6 - Conda or Modules: Snakemake provides the ability to define software environments to run the rule with. In this module, we exemplify the usage of either conda environments or installed modules on a high performance computing environment (i.e. `module load tool/1.0.0`)
 7. Module 7 - ScriptsAndOOP: More complicated rules can be put into Python or R scripts, which is covered here. Additionally, illustrated is the Object Orientation of Snakemake and how to leverage this to make your workflow more legible. 
-8. Module 8 - Full Pipeline: This workflow ties together all of these concepts, with a few minor changes that can clean up and make your workflows neater and more legible. 
+8. Module 8 - ProfilesAndSlurm: Information on how to run a pipeline using a cluster such as SLURM. Since this necessitates greater numbers of command line arguments, also covers profiles, which allow reproducible command line argument files.
+9. Module 9 - Full Pipeline: This workflow ties together all of these concepts, with a few minor changes that can clean up and make your workflows neater and more legible. 
 
 
 ## Acknowledgement

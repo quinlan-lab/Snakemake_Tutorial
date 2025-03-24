@@ -20,17 +20,19 @@ wildcard_constraints:
 
 rule all:
     input: 
-        expand("{out_dir}/data/{sample}-sorted.bai", out_dir = out_dir, sample = samples)
+        expand("{out_dir}/data/{sample}-sorted.bai", out_dir=out_dir, sample=samples)
 
 rule fastp: 
     input:
         r1 = in_dir + "/{sample}_R1.fastq",
         r2 = in_dir + "/{sample}_R2.fastq"
     output:
-        r1_clean = "{out_dir}/data/{sample}_R1.clean.fastq",
-        r2_clean = "{out_dir}/data/{sample}_R2.clean.fastq",
+        r1_clean = temp("{out_dir}/data/{sample}_R1.clean.fastq"),
+        r2_clean = temp("{out_dir}/data/{sample}_R2.clean.fastq"),
         html_report = "{out_dir}/reports/{sample}-fastp-report.html",
         json_report = "{out_dir}/reports/{sample}-fastp-report.json"
+    envmodules:
+        "fastp/0.20.1"
     threads: 
         4
     resources:
@@ -41,14 +43,14 @@ rule fastp:
         qual = 20
     shell:
         """
-        ml fastp/0.20.1
-        fastp --in1 {input.r1} --in2 {input.r2} \
-        --out1 {output.r1_clean} --out2 {output.r2_clean} \
-        --detect_adapter_for_pe \
-        --average_qual {params.qual} \
-        --thread {threads} \
-        --html {output.html_report} \
-        --json {output.json_report} 2> {log.stderr}
+        fastp \
+            --in1 {input.r1} --in2 {input.r2} \
+            --out1 {output.r1_clean} --out2 {output.r2_clean} \
+            --detect_adapter_for_pe \
+            --average_qual {params.qual} \
+            --thread {threads} \
+            --html {output.html_report} \
+            --json {output.json_report} 2> {log.stderr}
         """
 
 rule bwa_mem: 
@@ -58,6 +60,8 @@ rule bwa_mem:
         ref = reference
     output:
         sam = temp("{out_dir}/data/{sample}-aligned.sam")
+    envmodules:
+        "bwa-mem/2.2.1"
     threads: 
         4
     resources: 
@@ -66,8 +70,10 @@ rule bwa_mem:
         stderr = "{out_dir}/logs/{sample}-bwamem.log"
     shell: 
         """
-        ml bwa/0.7.17
-        bwa mem {input.ref} {input.r1_clean} {input.r2_clean} -t {threads} > {output.sam} 2> {log.stderr}
+        bwa mem \
+            {input.ref} {input.r1_clean} {input.r2_clean} \
+            -t {threads} \
+            > {output.sam} 2> {log.stderr}
         """
 
 rule convert_sam_to_bam: 
@@ -75,6 +81,8 @@ rule convert_sam_to_bam:
         sam = "{out_dir}/data/{sample}-aligned.sam"
     output:
         bam = temp("{out_dir}/data/{sample}.bam")
+    envmodules:
+        "samtools/1.16"
     threads: 
         4
     resources: 
@@ -83,7 +91,6 @@ rule convert_sam_to_bam:
         stderr = "{out_dir}/logs/{sample}_convert.log"
     shell:
         """
-        ml samtools/1.16
         samtools view --bam {input.sam} -o {output.bam} 2> {log.stderr}
         """
 
@@ -92,6 +99,8 @@ rule sort_bam:
         bam = "{out_dir}/data/{sample}.bam"
     output: 
         bam_sort = "{out_dir}/data/{sample}-sorted.bam"
+    envmodules:
+        "samtools/1.16"
     threads: 
         4
     resources:
@@ -100,7 +109,6 @@ rule sort_bam:
         stderr = "{out_dir}/logs/{sample}-sort.log"
     shell:
         """
-        ml samtools/1.16
         samtools sort {input.bam} -o {output.bam_sort} 2> {log.stderr}
         """
 
@@ -109,12 +117,13 @@ rule index_bam:
         bam_sort = "{out_dir}/data/{sample}-sorted.bam"
     output:
         bai = "{out_dir}/data/{sample}-sorted.bai"
+    envmodules:
+        "samtools/1.16"
     threads: 
         4
     log:
         stderr = "{out_dir}/logs/{sample}-indexbam.log"
     shell:  
         """
-        ml samtools/1.16
         samtools index -b {input.bam_sort} -o {output.bai} 2> {log.stderr}
         """

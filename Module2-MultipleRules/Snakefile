@@ -14,7 +14,7 @@ wildcard_constraints:
 # Rule 'all', defining all requested output.
 rule all:
     input: 
-        expand("output/data/{sample}-sorted.bai", sample = samples)
+        expand("output/data/{sample}-sorted.bai", sample=samples)
 
 # Rule 'fastp' preprocesses the reads by detecting and removing adapters,
 # filtering reads with an average quality less than 20, and producing 
@@ -24,19 +24,20 @@ rule fastp:
         r1 = "../data/{sample}_R1.fastq",
         r2 = "../data/{sample}_R2.fastq"
     output:
-        r1_clean = "output/data/{sample}_R1.clean.fastq",
-        r2_clean = "output/data/{sample}_R2.clean.fastq",
+        r1_clean = temp("output/data/{sample}_R1.clean.fastq"),
+        r2_clean = temp("output/data/{sample}_R2.clean.fastq"),
         html_report = "output/reports/{sample}-fastp-report.html",
         json_report = "output/reports/{sample}-fastp-report.json"
     shell:
         """
-        fastp --in1 {input.r1} --in2 {input.r2} \
-        --out1 {output.r1_clean} --out2 {output.r2_clean} \
-        --detect_adapter_for_pe \
-        --average_qual 20 \
-        --thread {threads} \
-        --html {output.html_report} \
-        --json {output.json_report}
+        fastp \
+            --in1 {input.r1} --in2 {input.r2} \
+            --out1 {output.r1_clean} --out2 {output.r2_clean} \
+            --detect_adapter_for_pe \
+            --average_qual 20 \
+            --thread {threads} \
+            --html {output.html_report} \
+            --json {output.json_report}
         """
 
 # Aligns cleaned fastq reads to the defined reference genome. 

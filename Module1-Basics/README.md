@@ -1,6 +1,6 @@
 # Module 
 Joshua L. Major-Mincer  
-Last Updated: 08/09/23
+Last Updated: 03/24/2025
 
 ## Run Command
 ```
@@ -28,7 +28,7 @@ Each process in a Snakemake workflow is known as a `rule`. `rule`s are the build
 Each `rule`, at a minimum, needs a few fields: 
 * `input`: this is the file or directory paths that are operated on in the rule. In our example rule `rule fastp`, we have two inputs, `r1` equaling the path of the read 1 file, and `r2` of the read 2 file. You might notice the notation `{sample}`, these are known as `wildcards`: for more information, see the `Wildcards` section. 
 * `output`: Like `input`, these are the paths to the files or directory paths of the expected output produced by the rule. 
-* code: the last needed block is a block of some code that produces the expected `output` files. These code blocks can be a variety of options: `shell` for bash shell commands, `script` for Python or R scripts, or `run` for Python code. Since `shell` is the most common option, this is what we will be primarily using for the tutorial. The `input` and `output` variables can be referenced in the `shell` block itself using curly braces. For example, the first line:  
+* code: the last needed block is a block of some code that produces the expected `output` files. These code blocks can be a variety of options: `shell` for bash shell commands, `script` for Python, R, or bash scripts, or `run` for Python code. `shell` will be used the most for this tutorial as it is the most straight-forward to implement. The `input` and `output` variables can be referenced in the `shell` block itself using curly braces. For example, the first line:  
 ```fastp --in1 {input.r1} --in2 {input.r2}```  
 will evaluate to   
 ```fastp --in1 ../data/{sample}_R1.fastq --in2 ../data/{sample}_R2.fastq```
@@ -41,16 +41,18 @@ In this small example, the rules of our `Snakefile` are executed until all input
 If we have many input files that we want to perform the same actions on, it would be unreasonable to hard-code each of these paths and manually run the workflow on these files every time. The Snakemake solution to this is to define `wildcards`, which are denoted by the curly braces `{ }` in the `input` and `output` variable paths. In our workflow, the only `wildcard` is `{sample}`. This `wildcard` will be substituted with our desired sample values, and this is usually defined using the `expand` function. See the next section for details. 
 
 ### Expand
-The `expand` function essentially states: "Stop the workflow, make sure all of the desired input is available, and then proceed". It is also used to "expand" the values for the `wildcards` to ensure that they're there using defined values. Let's break down our example in `rule all`:  
-`expand("output/data/{sample}_R1.clean.fastq", sample = samples)`  
+The `expand` function essentially states: "Stop the workflow, fill in the 'wildcard blanks' with these values, make sure all of the desired input is available, and then proceed". Let's break down our example in `rule all`:  
+`expand("output/data/{sample}_R1.clean.fastq", sample=samples)`  
 
-In the `expand` function, we're defining `sample = samples`. This `sample` is referring to the same `{sample}` `wildcard` defined in the path `"output/data/{sample}_R1.clean.fastq`. Recall that `samples` is our list `["Sample1", "Sample2", "Sample3"]`. To put this in English, this command means:  
-**Stop the pipeline and do not proceed until `output/data/Sample1_R1.clean.fastq`, `output/data/Sample2_R1.clean.fastq`, and `output/data/Sample3_R1.clean.fastq` exists!**  
+In the `expand` function, we're defining `sample=samples`. This `sample` is referring to the same `{sample}` `wildcard` defined in the path `"output/data/{sample}_R1.clean.fastq`. Recall that `samples` is our list `["Sample1", "Sample2", "Sample3"]`. 
+
+To put this in English, this command means:  **Stop the pipeline and do not proceed until `output/data/Sample1_R1.clean.fastq`, `output/data/Sample2_R1.clean.fastq`, and `output/data/Sample3_R1.clean.fastq` exists!**  
+
 As these files do not exist at the start of the workflow execution, the values for the wildcards are individually propogated back to `rule fastp`, and the rule is executed to satisfy this request. See the **Workflow** section to see an illustration of how this works; the `rule fastp` is executed three times, each with `{sample}` `wildcard` defined as one of the values in the `samples` list.  
 
 ### Wildcard Combinations in Expand
 There is no example in the current Snakefile, but a characteristic of `expand` is that, when multiple wildcards are defined, it will `expand` the possible combinations of the defined wildcards. Let's take an example:  
-`expand("data/{sample}_{read}.fastq", sample = ["Sample1", "Sample2"], read = ["R1"], ["R2"])`  
+`expand("data/{sample}_{read}.fastq", sample=["Sample1", "Sample2"], read=["R1", "R2"])`  
 
 **This will "expand" the wildcards to satisfy all of the possible combinations in this list:** 
 * `data/Sample1_R1.fastq`
@@ -59,7 +61,7 @@ There is no example in the current Snakefile, but a characteristic of `expand` i
 * `data/Sample2_R2.fastq`
 
 However, a useful feature of `expand` is that you can define a function to specify how the wildcards are expanded. In this case, let's try the `zip` function:  
-`expand("data/{sample}_{read}.fastq", zip, sample = ["Sample1", "Sample2"], read = ["R1"], ["R2"])`  
+`expand("data/{sample}_{read}.fastq", zip, sample=["Sample1", "Sample2"], read=["R1", "R2"])`  
 
 Given two equal length lists, `zip` will pair the item at each index with the item at the same index in another list. And so, our expansion becomes: 
 * `data/Sample1_R1.fastq`

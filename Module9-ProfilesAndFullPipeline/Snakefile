@@ -9,9 +9,31 @@ out_dir: str = config["output_directory"]
 reference: str = config["reference_genome"]
 samples: list[str] = config["samples"]
 
+sample_paths = {
+    "Sample1": {
+        "R1": in_dir + "/Sample1_R1.fastq",
+        "R2": in_dir + "/Sample1_R2.fastq",
+    },
+    "Sample2": {
+        "R1": in_dir + "/Sample2_R1.fastq",
+        "R2": in_dir + "/Sample2_R2.fastq",
+    },
+    "Sample3": {
+        "R1": in_dir + "/Sample3_R1.fastq",
+        "R2": in_dir + "/Sample3_R2.fastq",
+    }
+}
+
+sample_quals = {
+    "Sample1": 5,
+    "Sample2": 10, 
+    "Sample3": 20
+}
+
 # Format
 in_dir = in_dir.rstrip("/")
 out_dir = out_dir.rstrip("/")
+
 
 wildcard_constraints: 
     out_dir = out_dir,
@@ -19,10 +41,25 @@ wildcard_constraints:
 
 rule all:
     input: 
-        expand("{out_dir}/data/{sample}-sorted.bai", out_dir = out_dir, sample = samples),
-        expand("{out_dir}/counts/percent_loss_sorted.txt", out_dir = out_dir),
-        expand("{out_dir}/cigar/{sample}-fullmatch.txt", out_dir = out_dir, sample = samples), 
-        expand("{out_dir}/mapq/{sample}-avgmapq.txt", out_dir = out_dir, sample = samples)
+        expand(
+            "{out_dir}/data/{sample}-sorted.bai",
+            out_dir=out_dir,
+            sample=samples
+        ),
+        expand(
+            "{out_dir}/counts/percent_loss_sorted.txt",
+            out_dir=out_dir
+        ),
+        expand(
+            "{out_dir}/cigar/{sample}-fullmatch.txt",
+            out_dir=out_dir,
+            sample=samples
+        ), 
+        expand(
+            "{out_dir}/mapq/{sample}-avgmapq.txt",
+            out_dir=out_dir,
+            sample=samples
+        )
 
 rule count_raw:
     input:
@@ -47,13 +84,17 @@ rule count_raw:
         echo -e "{wildcards.sample}\t$TOTAL" >> {output.raw_counts}
         """
 
+
+def getSampleQual(wildcards):
+    return sample_quals[wildcards.sample]
+
 rule fastp: 
     input:
-        r1 = in_dir + "/{sample}_R1.fastq",
-        r2 = in_dir + "/{sample}_R2.fastq"
+        r1 = lambda wc: sample_paths[wc.sample]["R1"],
+        r2 = lambda wc: sample_paths[wc.sample]["R2"]
     output:
-        r1_clean = "{out_dir}/data/{sample}_R1.clean.fastq",
-        r2_clean = "{out_dir}/data/{sample}_R2.clean.fastq",
+        r1_clean = temp("{out_dir}/data/{sample}_R1.clean.fastq"),
+        r2_clean = temp("{out_dir}/data/{sample}_R2.clean.fastq"),
         html_report = "{out_dir}/reports/{sample}-fastp-report.html",
         json_report = "{out_dir}/reports/{sample}-fastp-report.json"
     threads: 
@@ -65,16 +106,17 @@ rule fastp:
     log:
         stderr = "{out_dir}/logs/{sample}-fastp.log"
     params:
-        qual = 20
+        qual = getSampleQual
     shell:
         """
-        fastp --in1 {input.r1} --in2 {input.r2} \
-        --out1 {output.r1_clean} --out2 {output.r2_clean} \
-        --detect_adapter_for_pe \
-        --average_qual {params.qual} \
-        --thread {threads} \
-        --html {output.html_report} \
-        --json {output.json_report} 2> {log.stderr}
+        fastp \
+            --in1 {input.r1} --in2 {input.r2} \
+            --out1 {output.r1_clean} --out2 {output.r2_clean} \
+            --detect_adapter_for_pe \
+            --average_qual {params.qual} \
+            --thread {threads} \
+            --html {output.html_report} \
+            --json {output.json_report} 2> {log.stderr}
         """
 
 rule bwa_mem: 
@@ -94,7 +136,10 @@ rule bwa_mem:
         stderr = "{out_dir}/logs/{sample}-bwamem.log"
     shell: 
         """
-        bwa mem {input.ref} {input.r1_clean} {input.r2_clean} -t {threads} > {output.sam} 2> {log.stderr}
+        bwa mem \
+            {input.ref} {input.r1_clean} {input.r2_clean} \
+            -t {threads} \
+            > {output.sam} 2> {log.stderr}
         """
 
 rule full_cigar: 
@@ -142,10 +187,8 @@ rule convert_sam_to_bam:
         "envs/bioinformatics.yaml"
     log:
         stderr = "{out_dir}/logs/{sample}_convert.log"
-    shell:
-        """
-        samtools view --bam {input.sam} -o {output.bam} 2> {log.stderr}
-        """
+    script:
+        "scripts/convert_sam_to_bam.sh"
 
 rule sort_bam: 
     input:
@@ -170,7 +213,7 @@ rule count_bam:
         bam_sort = rules.sort_bam.output.bam_sort,
         raw_counts = rules.count_raw.output.raw_counts
     output:
-        proc_counts = "{out_dir}/counts/{sample}-processed-counts.txt",
+        proc_counts = temp("{out_dir}/counts/{sample}-processed-counts.txt"),
         merged_counts = "{out_dir}/counts/{sample}-counts.txt"
     threads: 
         1
@@ -207,7 +250,11 @@ rule index_bam:
 
 rule percent_loss:
     input:
-        count_files = expand(rules.count_bam.output.merged_counts, out_dir = out_dir, sample = samples)
+        count_files = expand(
+            rules.count_bam.output.merged_counts,
+            out_dir=out_dir,
+            sample=samples
+        )
     output:
         percent_loss = temp("{out_dir}/counts/percent_loss.txt")
     threads: 

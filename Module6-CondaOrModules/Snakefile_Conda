@@ -19,15 +19,15 @@ wildcard_constraints:
 
 rule all:
     input: 
-        expand("{out_dir}/data/{sample}-sorted.bai", out_dir = out_dir, sample = samples)
+        expand("{out_dir}/data/{sample}-sorted.bai", out_dir=out_dir, sample=samples)
 
 rule fastp: 
     input:
         r1 = in_dir + "/{sample}_R1.fastq",
         r2 = in_dir + "/{sample}_R2.fastq"
     output:
-        r1_clean = "{out_dir}/data/{sample}_R1.clean.fastq",
-        r2_clean = "{out_dir}/data/{sample}_R2.clean.fastq",
+        r1_clean = temp("{out_dir}/data/{sample}_R1.clean.fastq"),
+        r2_clean = temp("{out_dir}/data/{sample}_R2.clean.fastq"),
         html_report = "{out_dir}/reports/{sample}-fastp-report.html",
         json_report = "{out_dir}/reports/{sample}-fastp-report.json"
     threads: 
@@ -42,13 +42,14 @@ rule fastp:
         qual = 20
     shell:
         """
-        fastp --in1 {input.r1} --in2 {input.r2} \
-        --out1 {output.r1_clean} --out2 {output.r2_clean} \
-        --detect_adapter_for_pe \
-        --average_qual {params.qual} \
-        --thread {threads} \
-        --html {output.html_report} \
-        --json {output.json_report} 2> {log.stderr}
+        fastp \
+            --in1 {input.r1} --in2 {input.r2} \
+            --out1 {output.r1_clean} --out2 {output.r2_clean} \
+            --detect_adapter_for_pe \
+            --average_qual {params.qual} \
+            --thread {threads} \
+            --html {output.html_report} \
+            --json {output.json_report} 2> {log.stderr}
         """
 
 rule bwa_mem: 
@@ -68,7 +69,10 @@ rule bwa_mem:
         stderr = "{out_dir}/logs/{sample}-bwamem.log"
     shell: 
         """
-        bwa mem {input.ref} {input.r1_clean} {input.r2_clean} -t {threads} > {output.sam} 2> {log.stderr}
+        bwa mem \
+            {input.ref} {input.r1_clean} {input.r2_clean} \
+            -t {threads} \
+            > {output.sam} 2> {log.stderr}
         """
 
 rule convert_sam_to_bam: 

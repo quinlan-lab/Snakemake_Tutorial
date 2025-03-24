@@ -1,12 +1,13 @@
-name: snakemake_env
+name: snakemake_tutorial
 channels:
     - bioconda
     - conda-forge
-    - defaults
+    - nodefaults
 dependencies:
     - bwa=0.7.17
-    - fastp=0.23.4
+    - fastp=0.24.0
     - fastqc=0.12.1
-    - r-base=4.2.2
-    - samtools=1.17
-    - snakemake=7.32.0
+    - r-base=4.4.0
+    - samtools=1.21
+    - snakemake=8.30
+    - snakemake-executor-plugin-slurm=1.1.0

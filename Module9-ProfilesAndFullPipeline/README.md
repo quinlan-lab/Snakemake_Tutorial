@@ -1,10 +1,10 @@
 # Module 
 Joshua L. Major-Mincer  
-Last Updated: 08/11/23
+Last Updated: 03/24/2025
 
 ## Run Command
 ```
-snakemake --profile profiles/with_conda
+snakemake --profile profiles/local
 ```
 ## Description
 This last module ties together all of the concepts used previously and puts them together in one large workflow; long workflow with mutiple branching paths, use workflow decorators and a `conda` environment, external Python and R scripts, and modifiable configuration files. The only introduced concept here is the use of a profile. Otherwise, **this is the complete workflow that should give you an idea of the structure of making your own Snakemake pipeline!**

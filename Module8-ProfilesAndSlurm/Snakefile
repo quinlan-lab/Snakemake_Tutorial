@@ -44,17 +44,17 @@ rule all:
         expand("{out_dir}/cigar/{sample}-fullmatch.txt", out_dir=out_dir, sample=samples), 
         expand("{out_dir}/mapq/{sample}-avgmapq.txt", out_dir=out_dir, sample=samples)
 
-
 def getSampleQual(wildcards):
     return sample_quals[wildcards.sample]
+
 
 rule fastp: 
     input:
         r1 = lambda wc: sample_paths[wc.sample]["R1"],
         r2 = lambda wc: sample_paths[wc.sample]["R2"]
     output:
-        r1_clean = temp("{out_dir}/data/{sample}_R1.clean.fastq"),
-        r2_clean = temp("{out_dir}/data/{sample}_R2.clean.fastq"),
+        r1_clean = "{out_dir}/data/{sample}_R1.clean.fastq",
+        r2_clean = "{out_dir}/data/{sample}_R2.clean.fastq",
         html_report = "{out_dir}/reports/{sample}-fastp-report.html",
         json_report = "{out_dir}/reports/{sample}-fastp-report.json"
     threads: 

@@ -2,11 +2,10 @@ name: bioinformatics
 channels:
     - bioconda
     - conda-forge
-    - defaults
+    - nodefaults
 dependencies:
     - bwa=0.7.17
-    - fastp=0.23.4
+    - fastp=0.24.0
     - fastqc=0.12.1
-    - r-base=4.2.2
-    - samtools=1.17
-    
+    - r-base=4.4.0
+    - samtools=1.21

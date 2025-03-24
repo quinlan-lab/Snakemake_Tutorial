@@ -1,0 +1,17 @@
+### GENERAL BEHAVIOR
+rerun-incomplete: true
+rerun-triggers:
+- mtime
+
+software-deployment-method: conda
+conda-prefix: conda_envs/
+
+### LOCAL BEHAVIOR
+retries: 1
+cores: 20
+resources:
+- threads=20
+- mem_mb=50000
+
+default-resources:
+- mem_mb=4000

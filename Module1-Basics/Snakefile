@@ -11,8 +11,8 @@ samples: list[str] = [
 # Rule 'all', defining all requested output.
 rule all:
     input: 
-        expand("output/data/{sample}_R1.clean.fastq", sample = samples),
-        expand("output/data/{sample}_R2.clean.fastq", sample = samples)
+        expand("output/data/{sample}_R1.clean.fastq", sample=samples),
+        expand("output/data/{sample}_R2.clean.fastq", sample=samples)
 
 # Rule 'fastp' preprocesses the reads by detecting and removing adapters,
 # filtering reads with an average quality less than 20, and producing 
@@ -28,10 +28,11 @@ rule fastp:
         json_report = "output/reports/{sample}-fastp-report.json"
     shell:
         """
-        fastp --in1 {input.r1} --in2 {input.r2} \
-        --out1 {output.r1_clean} --out2 {output.r2_clean} \
-        --detect_adapter_for_pe \
-        --average_qual 20 \
-        --html {output.html_report} \
-        --json {output.json_report}
+        fastp \
+            --in1 {input.r1} --in2 {input.r2} \
+            --out1 {output.r1_clean} --out2 {output.r2_clean} \
+            --detect_adapter_for_pe \
+            --average_qual 20 \
+            --html {output.html_report} \
+            --json {output.json_report}
         """
