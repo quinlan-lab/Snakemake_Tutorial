@@ -1,0 +1,3 @@
+*.snakemake
+*/output/
+*/conda_env/
