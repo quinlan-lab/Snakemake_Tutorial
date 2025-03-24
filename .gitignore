@@ -2,5 +2,6 @@
 *output
 *conda_envs
 data.tar.gz
+data
 reference.tar.gz
-*data
+reference
