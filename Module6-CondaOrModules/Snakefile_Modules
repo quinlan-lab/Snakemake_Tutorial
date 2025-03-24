@@ -61,7 +61,7 @@ rule bwa_mem:
     output:
         sam = temp("{out_dir}/data/{sample}-aligned.sam")
     envmodules:
-        "bwa-mem/2.2.1"
+        "bwa/2020_03_19"
     threads: 
         4
     resources: 

@@ -4,7 +4,7 @@ rerun-triggers:
 - mtime
 
 software-deployment-method: conda
-conda-prefix: conda_envs/
+conda-prefix: ../conda_envs/
 
 ### CLUSTER BEHAVIOR
 executor: slurm

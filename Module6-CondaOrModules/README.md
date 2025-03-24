@@ -29,7 +29,7 @@ When defining this `conda` decorator, you'll point to a path to a `.yaml` config
 * `channels`: the channels to download the software from. 
 * `dependencies`: a list of the packages that are needed in the environment. It is also good practice to **include the version of the software required by the rule**.  
 
-In our `envs/bioinformatics.yaml` file, we require the `bwa`, `fastp`, `fastqc`, and `samtools` software to operate.  
+In our `envs/bioinformatics.yaml` file, we require the `bwa`, `fastp`, and `samtools` software to operate.  
 
 Additionally, if you have a pre-existing conda environment that you would like to use, and you are running Snakemake with an active `conda` instance, then you can refer to the environment by name if it already exists. For example, `conda: "env_name"`. **Note that this method is less portable.**
 

@@ -62,7 +62,7 @@ rule fastp:
     resources:
         mem_mb = 4000
     conda: 
-        "envs/bioinformatics.yaml"
+        "../envs/bioinformatics.yaml"
     log:
         stderr = "{out_dir}/logs/{sample}-fastp.log"
     params:
@@ -91,7 +91,7 @@ rule bwa_mem:
     resources: 
         mem_mb = 4000
     conda: 
-        "envs/bioinformatics.yaml"
+        "../envs/bioinformatics.yaml"
     log:
         stderr = "{out_dir}/logs/{sample}-bwamem.log"
     shell: 
@@ -112,7 +112,7 @@ rule full_cigar:
     resources:
         mem_mb = 1000
     conda: 
-        "envs/bioinformatics.yaml"
+        "../envs/bioinformatics.yaml"
     log: 
         "{out_dir}/logs/{sample}-cigar.log"
     script:
@@ -128,7 +128,7 @@ rule average_mapq:
     resources:
         mem_mb = 1000
     conda: 
-        "envs/bioinformatics.yaml"
+        "../envs/bioinformatics.yaml"
     log: 
         "{out_dir}/logs/{sample}-mapq.log"
     script:
@@ -144,7 +144,7 @@ rule convert_sam_to_bam:
     resources: 
         mem_mb = 1000
     conda: 
-        "envs/bioinformatics.yaml"
+        "../envs/bioinformatics.yaml"
     log:
         stderr = "{out_dir}/logs/{sample}_convert.log"
     script:
@@ -160,7 +160,7 @@ rule sort_bam:
     resources:
         mem_mb = 4000
     conda: 
-        "envs/bioinformatics.yaml"
+        "../envs/bioinformatics.yaml"
     log:
         stderr = "{out_dir}/logs/{sample}-sort.log"
     shell:
@@ -176,7 +176,7 @@ rule index_bam:
     threads: 
         4
     conda: 
-        "envs/bioinformatics.yaml"
+        "../envs/bioinformatics.yaml"
     log:
         stderr = "{out_dir}/logs/{sample}-indexbam.log"
     shell:  

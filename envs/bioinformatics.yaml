@@ -6,6 +6,5 @@ channels:
 dependencies:
     - bwa=0.7.17
     - fastp=0.24.0
-    - fastqc=0.12.1
-    - r-base=4.4.0
     - samtools=1.21
+    
