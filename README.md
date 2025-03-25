@@ -8,7 +8,7 @@ Last updated: 03/24/2025
 ## Quickstart
 ```
 # Get snakemake tutorial. 
-git clone git@github.com:quinlan-lab/Snakemake_Tutorial.git
+git clone https://github.com/quinlan-lab/Snakemake_Tutorial.git
 cd Snakemake_Tutorial 
 
 # Downloaded necessary files. 
