@@ -27,7 +27,7 @@ rm reference.tar.gz
 # Activate environment using either conda or environment modules.
 # ====== OPTION 1 - Conda
 conda env create -f envs/snakemake_env.yaml
-conda activate snakemake_env
+conda activate snakemake_tutorial
 
 # ====== OPTION 2 - Env Modules
 module load bwa/2020_03_19 fastp/0.20.1 R/4.4.0 samtools/1.16 snakemake/8.16.0
